@@ -9,6 +9,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from tutorialflow.config import settings
+from tutorialflow.brand_presets import canonical_brand_preset
 from tutorialflow.storage.cleanup import cleanup_expired_projects
 from tutorialflow.storage.workspace import (
     create_project,
@@ -83,8 +84,7 @@ def _stream_chatgpt_file(download_url: str, target: Path) -> int:
 def inspect_video(video: dict, brand: str = "education_global") -> dict:
     if not isinstance(video, dict) or not video.get("download_url") or not video.get("file_id"):
         raise ValueError("Attach a screen recording using ChatGPT's file upload control.")
-    if brand not in {"default", "education_global"}:
-        raise ValueError("Unknown brand preset. Available presets: default, education_global.")
+    brand = canonical_brand_preset(brand)
     cleanup_expired_projects()
     filename = Path(video.get("file_name") or "recording.mp4").name
     project_id, root, _artifact_token = create_project(filename)

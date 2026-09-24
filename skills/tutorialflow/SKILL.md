@@ -9,7 +9,7 @@ Use this skill when the user uploads a screen recording and asks to create, star
 
 ## Complete tutorial (default when the user asks to create or produce a tutorial)
 
-1. Call `inspect_tutorial_video` with the uploaded video file and desired brand. The tool accepts ChatGPT file parameters; do not ask for a local path or public URL.
+1. Call `inspect_tutorial_video` with the uploaded video file and desired brand. The tool accepts ChatGPT file parameters; do not ask for a local path or public URL. Brand names may be supplied as preset IDs or display names, such as `education_global` or `Education Global`.
 2. Visually inspect the returned contact sheet and keyframe images. Base the topic, pages, clicks, text, dropdown choices, errors, confirmations, and final state only on the actual images. Never infer from the filename. If the frames do not establish an action, omit it or tell the user what evidence is unclear.
 3. Draft concise, professional narration in chronological order. Only describe visibly supported actions. Mention example values only if readable. Do not claim an action succeeded unless the recording visibly shows success. Target the returned recommended word count (about 150 words/minute, within the returned range).
 4. For a complete tutorial request, call `save_tutorial_script`, then `generate_voiceover` with the narration you wrote. If the user did not select a voice and no default voice is configured, call `list_elevenlabs_voices` and select an available voice suitable for clear educational narration. The configured service calls ElevenLabs and returns the audio artifact. Never ask the user to provide pre-generated ElevenLabs audio. Reuse the selected voice; never assume a voice such as Roger is available.
@@ -19,7 +19,7 @@ Use this skill when the user uploads a screen recording and asks to create, star
 
 ## Script-only or review requests
 
-If the user asks only for a script, draft, or review, show the script and pause before calling `generate_voiceover` or `sync_tutorial`. Otherwise, a request to create or produce a tutorial means they want the complete flow. If ElevenLabs returns a missing-key, invalid-key, quota, or voice error, report that tool error and stop; do not ask the user to upload audio.
+If video inspection fails, stop and report its exact tool error. Do not draft from uninspected footage or ask the user to provide an ElevenLabs MP3. If the user asks only for a script, draft, or review, show the script and pause before calling `generate_voiceover` or `sync_tutorial`. Otherwise, a request to create or produce a tutorial means they want the complete flow. If ElevenLabs returns a missing-key, invalid-key, quota, or voice error, report that tool error and stop; do not ask the user to upload audio.
 
 ## Rules
 

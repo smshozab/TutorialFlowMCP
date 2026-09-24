@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from tutorialflow.config import settings
+from tutorialflow.brand_presets import canonical_brand_preset
 from tutorialflow.storage.workspace import load_project, project_path
 
 BRANDS = Path(__file__).resolve().parents[1] / "brands"
@@ -38,6 +39,7 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_g
     record = load_project(project_id)
     if not title.strip() or len(title) > 120:
         raise ValueError("Provide a concise thumbnail title of at most 120 characters.")
+    brand = canonical_brand_preset(brand)
     brand_file = BRANDS / f"{brand}.json"
     if brand_file.resolve().parent != BRANDS.resolve() or not brand_file.is_file():
         raise ValueError("Unknown brand preset. Available presets: default, education_global.")

@@ -24,6 +24,7 @@ logger = logging.getLogger("tutorialflow")
 
 from tutorialflow.audio.elevenlabs import ElevenLabsError, list_voices
 from tutorialflow.config import settings
+from tutorialflow.brand_presets import canonical_brand_preset
 from tutorialflow.storage.cleanup import cleanup_expired_projects
 from tutorialflow.storage.workspace import (
     ProjectError,
@@ -58,9 +59,11 @@ allowed_origins = [f"{urlsplit(settings.app_base_url).scheme}://{public_host}", 
 
 mcp = MCPServer(
     name="TutorialFlow",
-    version="0.1.1",
+    version="0.1.2",
     instructions=(
-        "Use returned video frames as evidence; never infer actions from filenames. For a complete tutorial, "
+        "Use returned video frames as evidence; never infer actions from filenames. If video inspection fails, "
+        "stop and report the tool error; do not draft from uninspected footage or ask the user for ElevenLabs audio. "
+        "For a complete tutorial, "
         "save the narration, select an available voice with list_elevenlabs_voices when no voice ID is "
         "configured, call generate_voiceover (ElevenLabs API), sync the video, prepare a thumbnail "
         "brief, and fetch the result. Never ask the user to supply ElevenLabs audio. Pause only for an "
@@ -71,8 +74,11 @@ mcp = MCPServer(
 
 @mcp.tool(meta={"openai/fileParams": ["video"]})
 def inspect_tutorial_video(video: ChatGPTFile, brand: str = "education_global"):
-    """Inspect a user-uploaded screen recording and return MCP image content for the actual frames."""
-    details = inspect_video(video.model_dump(exclude_none=True), brand)
+    """Inspect an uploaded recording and return its actual frames. Brand accepts education_global/Education Global or default/TutorialFlow."""
+    try:
+        details = inspect_video(video.model_dump(exclude_none=True), canonical_brand_preset(brand))
+    except (ValueError, ProjectError) as exc:
+        raise ToolError(str(exc)) from exc
     root = project_path(details["project_id"])
     blocks = [TextContent(type="text", text=json.dumps(details, ensure_ascii=False))]
     blocks.append(Image(path=root / details["contact_sheet_path"]))
@@ -113,8 +119,11 @@ def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
 
 @mcp.tool()
 def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_global"):
-    """Prepare a branded thumbnail prompt and return a real keyframe as visual evidence."""
-    brief = make_thumbnail_brief(project_id, title, brand)
+    """Prepare a branded thumbnail brief; brand accepts education_global/Education Global or default/TutorialFlow."""
+    try:
+        brief = make_thumbnail_brief(project_id, title, canonical_brand_preset(brand))
+    except (ValueError, ProjectError) as exc:
+        raise ToolError(str(exc)) from exc
     path = resolve_artifact(project_id, brief["evidence_frame_path"])
     return [TextContent(type="text", text=json.dumps(brief, ensure_ascii=False)), Image(path=path)]
 
@@ -153,7 +162,7 @@ async def _periodic_cleanup() -> None:
         await asyncio.to_thread(cleanup_expired_projects)
 
 
-app = FastAPI(title="TutorialFlow", version="0.1.1", lifespan=lifespan)
+app = FastAPI(title="TutorialFlow", version="0.1.2", lifespan=lifespan)
 
 
 @app.get("/health")

@@ -84,7 +84,7 @@ The server does not create or alter the thumbnail image; ChatGPT does. The assis
 
 ## Tools and endpoints
 
-- `inspect_tutorial_video(video, brand)` — ChatGPT file parameter, streaming upload, metadata, contact sheet, frame image blocks.
+- `inspect_tutorial_video(video, brand)` — ChatGPT file parameter, streaming upload, metadata, contact sheet, frame image blocks. Brand preset IDs and display names are accepted (for example, `education_global` or `Education Global`).
 - `list_elevenlabs_voices()` — live account voice list; does not assume any voice is available.
 - `save_tutorial_script(project_id, script)` — stores the ChatGPT-authored review draft.
 - `generate_voiceover(project_id, script, voice_id, model)` — cached ElevenLabs MP3.

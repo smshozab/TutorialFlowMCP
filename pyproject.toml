@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tutorialflow"
-version = "0.1.0"
+version = "0.1.1"
 description = "Railway-first MCP server for turning screen recordings into narrated tutorials."
 requires-python = ">=3.11"
 dependencies = [

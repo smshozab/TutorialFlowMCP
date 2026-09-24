@@ -70,16 +70,17 @@ Set secrets in Railway's variable UI. A Railway Volume is optional: add a volume
 
 ## ChatGPT workflow
 
-The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) teaches ChatGPT the review-first flow.
+The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) teaches ChatGPT the complete tutorial flow.
 
 1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.”
 2. `inspect_tutorial_video` streams it to Railway and returns metadata and the visual frames.
-3. ChatGPT inspects the images, writes a fact-grounded script, and presents it for approval.
-4. After approval, ChatGPT calls `save_tutorial_script`, `generate_voiceover`, and `sync_tutorial`.
-5. ChatGPT calls `build_thumbnail_brief`, inspects the evidence frame, and generates the thumbnail natively.
-6. `get_tutorial_result` provides the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
+3. ChatGPT inspects the images and writes a fact-grounded narration script.
+4. For a complete tutorial request, ChatGPT calls `save_tutorial_script`, then `generate_voiceover`; the Railway service sends the text to ElevenLabs using `ELEVENLABS_API_KEY` and stores the returned audio.
+5. ChatGPT calls `sync_tutorial` to render the video with the generated narration. It pauses for script approval only when you ask for a script draft or review.
+6. ChatGPT calls `build_thumbnail_brief`, inspects the evidence frame, and generates the thumbnail natively.
+7. `get_tutorial_result` provides the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
 
-Auto mode skips the script approval pause only when the user explicitly requests it. The server does not create or alter the thumbnail image; ChatGPT does.
+The server does not create or alter the thumbnail image; ChatGPT does. The assistant should never ask you to upload ElevenLabs audio: the `generate_voiceover` tool creates it through the configured API key.
 
 ## Tools and endpoints
 

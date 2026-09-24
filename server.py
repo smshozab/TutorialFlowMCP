@@ -57,11 +57,12 @@ allowed_origins = [f"{urlsplit(settings.app_base_url).scheme}://{public_host}", 
 
 mcp = MCPServer(
     name="TutorialFlow",
-    version="0.1.0",
+    version="0.1.1",
     instructions=(
-        "Inspect actual uploaded screen recordings using returned contact sheet and frame images. "
-        "Never infer tutorial content from a filename. ChatGPT writes narration; this server only processes media. "
-        "Review mode is the default: show the script and wait for user approval before generating narration."
+        "Use returned video frames as evidence; never infer actions from filenames. For a complete tutorial, "
+        "save the narration, call generate_voiceover (ElevenLabs API), sync the video, prepare a thumbnail "
+        "brief, and fetch the result. Never ask the user to supply ElevenLabs audio. Pause only for an "
+        "explicit script-review or script-only request. If TTS fails, report the tool error."
     ),
 )
 
@@ -87,9 +88,9 @@ def list_elevenlabs_voices() -> dict:
         raise ValueError(str(exc)) from exc
 
 
-@mcp.tool(annotations={"destructiveHint": True, "readOnlyHint": False})
+@mcp.tool(annotations={"destructiveHint": False, "readOnlyHint": False})
 def generate_voiceover(project_id: str, script: str, voice_id: str | None = None, model: str | None = None) -> dict:
-    """Generate or reuse narration with the configured ElevenLabs account for an approved script."""
+    """Send narration text to the configured ElevenLabs API and return the generated audio artifact."""
     return make_voiceover(project_id, script, voice_id, model)
 
 
@@ -147,7 +148,7 @@ async def _periodic_cleanup() -> None:
         await asyncio.to_thread(cleanup_expired_projects)
 
 
-app = FastAPI(title="TutorialFlow", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="TutorialFlow", version="0.1.1", lifespan=lifespan)
 
 
 @app.get("/health")

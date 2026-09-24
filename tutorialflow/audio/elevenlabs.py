@@ -18,7 +18,17 @@ class ElevenLabsError(RuntimeError):
 def _raise_api_error(response: httpx.Response) -> None:
     if response.is_success:
         return
-    if response.status_code == 401:
+    detail = {}
+    try:
+        payload = response.json()
+        candidate = payload.get("detail", {}) if isinstance(payload, dict) else {}
+        if isinstance(candidate, dict):
+            detail = candidate
+    except (ValueError, json.JSONDecodeError):
+        pass
+    if detail.get("status") == "api_key_id_used_as_api_key":
+        message = "ELEVENLABS_API_KEY contains the key ID, not the API key secret. Replace it with the secret key shown when the key was created; it starts with 'sk_'."
+    elif response.status_code == 401 or detail.get("code") == "invalid_api_key":
         message = "ElevenLabs rejected the API key. Check ELEVENLABS_API_KEY."
     elif response.status_code == 429:
         message = "ElevenLabs rate limit or account quota reached. Wait or check your plan quota."

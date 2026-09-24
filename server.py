@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Image
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import TextContent
 from pydantic import BaseModel, ConfigDict, Field
@@ -60,7 +61,8 @@ mcp = MCPServer(
     version="0.1.1",
     instructions=(
         "Use returned video frames as evidence; never infer actions from filenames. For a complete tutorial, "
-        "save the narration, call generate_voiceover (ElevenLabs API), sync the video, prepare a thumbnail "
+        "save the narration, select an available voice with list_elevenlabs_voices when no voice ID is "
+        "configured, call generate_voiceover (ElevenLabs API), sync the video, prepare a thumbnail "
         "brief, and fetch the result. Never ask the user to supply ElevenLabs audio. Pause only for an "
         "explicit script-review or script-only request. If TTS fails, report the tool error."
     ),
@@ -81,17 +83,20 @@ def inspect_tutorial_video(video: ChatGPTFile, brand: str = "education_global"):
 
 @mcp.tool()
 def list_elevenlabs_voices() -> dict:
-    """List voices available to the configured ElevenLabs account."""
+    """List account voices so the workflow can select one when no default voice ID is configured."""
     try:
         return {"voices": list_voices()}
     except ElevenLabsError as exc:
-        raise ValueError(str(exc)) from exc
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool(annotations={"destructiveHint": False, "readOnlyHint": False})
 def generate_voiceover(project_id: str, script: str, voice_id: str | None = None, model: str | None = None) -> dict:
     """Send narration text to the configured ElevenLabs API and return the generated audio artifact."""
-    return make_voiceover(project_id, script, voice_id, model)
+    try:
+        return make_voiceover(project_id, script, voice_id, model)
+    except ElevenLabsError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()

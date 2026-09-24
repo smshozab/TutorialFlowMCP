@@ -33,7 +33,7 @@ ChatGPT product access can vary by plan and workspace policy. Current OpenAI gui
 
 1. Create an API key in your ElevenLabs account and confirm API access is enabled.
 2. Set the key as the Railway variable `ELEVENLABS_API_KEY`; do not add it to Git or conversation text.
-3. Optionally set `ELEVENLABS_VOICE_ID`. Otherwise choose a voice from `list_elevenlabs_voices`.
+3. Optionally set `ELEVENLABS_VOICE_ID` to your preferred voice ID. If it is empty, ChatGPT can call `list_elevenlabs_voices` and select an available narration voice automatically.
 4. `ELEVENLABS_MODEL` defaults to `eleven_flash_v2_5` and is configurable. ElevenLabs currently lists Flash v2.5 as a balanced, lower-cost speech model; model and voice access still depend on your account. See [model selection](https://elevenlabs.io/docs/models) and the [Create speech API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert). The tool caches the MP3 when the script, voice, and model match, avoiding a second TTS request.
 
 The free tier's voice/model availability and quotas are controlled by ElevenLabs. TutorialFlow surfaces rate/quota, voice, and API-key errors without logging credentials.

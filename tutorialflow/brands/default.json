@@ -1,0 +1,8 @@
+{
+  "name": "TutorialFlow",
+  "theme": "clean green and white",
+  "style": "clear, modern software tutorial",
+  "layout": "large headline and recognizable software UI",
+  "tutorial_badge": true,
+  "people": false
+}

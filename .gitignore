@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+workspace/
+dist/
+build/
+*.egg-info/

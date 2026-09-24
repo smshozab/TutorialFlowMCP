@@ -1,0 +1,10 @@
+{
+  "name": "Education Global",
+  "theme": "green_white",
+  "style": "clean modern SaaS tutorial",
+  "layout": "headline left, laptop UI right",
+  "tutorial_badge": true,
+  "people": false,
+  "benefits": ["Step by Step", "Save Time", "Better Management"],
+  "colors": {"primary": "#16734A", "accent": "#75D7AE", "background": "#F7FCF9", "text": "#153B2C"}
+}

@@ -30,6 +30,7 @@ def test_health_endpoint_and_chatgpt_file_schema():
         data_line = next(line[6:] for line in response.text.splitlines() if line.startswith("data: "))
         tools = json.loads(data_line)["result"]["tools"]
         inspect = next(tool for tool in tools if tool["name"] == "inspect_tutorial_video")
+        assert any(tool["name"] == "finish_tutorial" for tool in tools)
         assert inspect["_meta"]["openai/fileParams"] == ["video"]
         file_schema = inspect["inputSchema"]["$defs"]["ChatGPTFile"]
         assert file_schema["required"] == ["download_url", "file_id"]

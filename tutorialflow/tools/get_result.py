@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tutorialflow.config import settings
 from tutorialflow.brand_presets import canonical_brand_preset
+from tutorialflow.config import settings
 from tutorialflow.storage.workspace import load_project, project_path
 
 BRANDS = Path(__file__).resolve().parents[1] / "brands"
@@ -25,6 +25,7 @@ def get_tutorial_result(project_id: str) -> dict:
         "script_artifact": _artifact_url(project_id, "script.txt", token) if (root / "script.txt").is_file() else None,
         "narration": _artifact_url(project_id, "audio/narration.mp3", token) if (root / "audio/narration.mp3").is_file() else None,
         "synced_video": _artifact_url(project_id, "output/tutorial.mp4", token) if (root / "output/tutorial.mp4").is_file() else None,
+        "thumbnail": _artifact_url(project_id, "output/thumbnail.png", token) if (root / "output/thumbnail.png").is_file() else None,
         "contact_sheet": _artifact_url(project_id, "frames/contact_sheet.jpg", token) if (root / "frames/contact_sheet.jpg").is_file() else None,
         "keyframes": [
             {"time_seconds": frame["time_seconds"], "url": _artifact_url(project_id, frame["path"], token)}

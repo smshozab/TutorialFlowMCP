@@ -3,6 +3,7 @@ import subprocess
 from subprocess import CompletedProcess
 
 import pytest
+from PIL import Image
 
 from tutorialflow.video import ffmpeg, frames, metadata
 
@@ -57,6 +58,43 @@ def test_probe_rejects_invalid_video(tmp_path, monkeypatch):
     monkeypatch.setattr(metadata, "run_media_command", lambda *_a, **_kw: CompletedProcess([], 0, '{"streams": []}', ""))
     with pytest.raises(ValueError, match="no video stream"):
         metadata.probe_video(source)
+
+
+def test_frame_extraction_converts_png_to_jpeg(tmp_path, monkeypatch):
+    monkeypatch.setattr(frames, "detect_scene_times", lambda _video: [])
+
+    def fake_ffmpeg(command, timeout):
+        assert "png" in command and "rgb24" in command
+        Image.new("RGB", (320, 180), "#176d49").save(command[-1], format="PNG")
+
+    monkeypatch.setattr(frames, "run_media_command", fake_ffmpeg)
+    extracted = frames.extract_keyframes(tmp_path / "source.mp4", tmp_path / "frames", 2)
+    assert extracted
+    assert all((tmp_path / "frames" / f"frame_{index:02d}.jpg").is_file()
+               for index in range(1, len(extracted) + 1))
+    assert not list((tmp_path / "frames").glob("*.png"))
+
+
+def test_branded_thumbnail_uses_actual_frame(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from tutorialflow.storage import workspace
+    from tutorialflow.video.thumbnail import render_thumbnail
+
+    monkeypatch.setattr(workspace, "settings", SimpleNamespace(
+        workspace_path=tmp_path, ttl_hours=24, artifact_secret="",
+    ))
+    project_id, root, _ = workspace.create_project("video.mp4")
+    frame = root / "frames" / "frame_01.jpg"
+    Image.new("RGB", (640, 360), "#d1e5fa").save(frame)
+    record = workspace.load_project(project_id)
+    record["frames"] = [{"time_seconds": 1.0, "path": "frames/frame_01.jpg"}]
+    workspace.save_project(project_id, record)
+
+    result = render_thumbnail(project_id, "Generate a Statement of Marks", "Education Global")
+    assert result["path"] == "output/thumbnail.png"
+    with Image.open(root / result["path"]) as thumbnail:
+        assert thumbnail.size == (1280, 720)
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg is installed in Docker/Railway, not required on the dev PC")

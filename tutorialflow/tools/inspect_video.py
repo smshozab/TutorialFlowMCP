@@ -8,8 +8,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from tutorialflow.config import settings
 from tutorialflow.brand_presets import canonical_brand_preset
+from tutorialflow.config import settings
 from tutorialflow.storage.cleanup import cleanup_expired_projects
 from tutorialflow.storage.workspace import (
     create_project,

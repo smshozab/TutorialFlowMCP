@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 from pathlib import Path
@@ -11,6 +12,7 @@ from tutorialflow.config import settings
 from tutorialflow.utils.subprocess_utils import MediaCommandError, run_media_command
 
 SCENE_TIME_RE = re.compile(r"pts_time:([0-9.]+)")
+logger = logging.getLogger(__name__)
 
 
 def sample_times(duration: float, scene_times: list[float], limit: int = 18) -> list[float]:
@@ -44,21 +46,37 @@ def extract_keyframes(video: Path, out_dir: Path, duration: float) -> list[dict]
     out_dir.mkdir(parents=True, exist_ok=True)
     times = sample_times(duration, detect_scene_times(video), settings.max_frame_count)
     frames: list[dict] = []
+    last_error: str | None = None
     for index, second in enumerate(times, 1):
         target = out_dir / f"frame_{index:02d}.jpg"
-        run_media_command([
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{second:.3f}",
-            "-i", str(video), "-frames:v", "1",
-            "-q:v", "3", "-y", str(target),
-        ], timeout=90)
-        if target.exists() and target.stat().st_size:
+        temporary = out_dir / f"frame_{index:02d}.png"
+        try:
+            # The MJPEG encoder rejects limited-range YUV from some screen recorders.
+            # Decode to PNG, then let Pillow convert to the final JPEGs.
+            run_media_command([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{second:.3f}",
+                "-i", str(video), "-map", "0:v:0", "-frames:v", "1",
+                "-an", "-sn", "-dn", "-c:v", "png", "-pix_fmt", "rgb24",
+                "-threads", "1", "-y", str(temporary),
+            ], timeout=90)
+            if not temporary.is_file() or not temporary.stat().st_size:
+                continue
             preview = out_dir / f"preview_{index:02d}.jpg"
-            with PILImage.open(target) as image:
+            with PILImage.open(temporary) as source:
+                image = source.convert("RGB")
+                image.save(target, format="JPEG", quality=90, optimize=True)
                 image.thumbnail((1280, 1280), PILImage.Resampling.LANCZOS)
-                image.convert("RGB").save(preview, format="JPEG", quality=82, optimize=True)
+                image.save(preview, format="JPEG", quality=82, optimize=True)
             frames.append({"time_seconds": round(second, 2), "path": str(target), "preview_path": str(preview)})
+        except (MediaCommandError, OSError) as exc:
+            last_error = str(exc)
+            target.unlink(missing_ok=True)
+            logger.warning("Frame extraction skipped time_seconds=%.2f reason=%s", second, last_error[-200:])
+        finally:
+            temporary.unlink(missing_ok=True)
     if not frames:
-        raise ValueError("No frames could be extracted; the recording may be corrupted.")
+        detail = f" Last FFmpeg error: {last_error[-300:]}" if last_error else ""
+        raise ValueError(f"No frames could be extracted from the recording.{detail}")
     return frames
 
 

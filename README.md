@@ -1,17 +1,17 @@
 # TutorialFlow
 
-TutorialFlow is a Railway-first MCP server that inspects a screen recording, returns real visual evidence to ChatGPT, and then uses FFmpeg and ElevenLabs to create a narrated tutorial. ChatGPT performs the visual reasoning, writes the script, and creates the thumbnail with its native image-generation capability. No OpenAI or other vision API is called by the backend.
+TutorialFlow is a Railway-first MCP server that inspects a screen recording, returns real visual evidence to ChatGPT, and then uses FFmpeg and ElevenLabs to create a narrated tutorial. ChatGPT performs the visual reasoning and writes the script. Railway creates a consistent thumbnail from a real frame, and ChatGPT may optionally create a more elaborate image with its native image-generation capability. No OpenAI or other vision API is called by the backend.
 
 ## Architecture
 
 ```text
 ChatGPT file upload → MCP fileParams (temporary URL) → Railway streamed download
 → ffprobe + FFmpeg keyframes/contact sheet → MCP image content for ChatGPT
-→ ChatGPT script/review → ElevenLabs MP3 → FFmpeg H.264/AAC render
-→ signed temporary artifact links → automatic TTL cleanup
+→ ChatGPT script → finish_tutorial → ElevenLabs MP3 → FFmpeg H.264/AAC render
+→ branded PNG thumbnail → signed temporary artifact links → automatic TTL cleanup
 ```
 
-The upload uses ChatGPT's documented MCP file input contract: `openai/fileParams` identifies a file object with `download_url` and `file_id`. The service streams the temporary HTTPS download to disk in bounded chunks and never reads the whole recording into memory. The inspection result includes actual MCP image blocks (contact sheet plus sampled keyframes) so the model can inspect what happened. See [OpenAI's file parameter reference](https://developers.openai.com/plugins/reference#file-apis) and [MCP Python SDK media results](https://py.sdk.modelcontextprotocol.io/servers/media/).
+The upload uses ChatGPT's documented MCP file input contract: `openai/fileParams` identifies a file object with `download_url` and `file_id`. The service streams the temporary HTTPS download to disk in bounded chunks and never reads the whole recording into memory. The inspection result includes actual MCP image blocks (contact sheet plus sampled keyframes) so the model can inspect what happened. The Railway service then handles voice selection, TTS, rendering, and a frame-based thumbnail in one `finish_tutorial` call. See [OpenAI's file parameter reference](https://developers.openai.com/plugins/reference#file-apis) and [MCP Python SDK media results](https://py.sdk.modelcontextprotocol.io/servers/media/).
 
 ## Railway and local storage
 
@@ -33,7 +33,7 @@ ChatGPT product access can vary by plan and workspace policy. Current OpenAI gui
 
 1. Create an API key in your ElevenLabs account and confirm API access is enabled.
 2. Set the key as the Railway variable `ELEVENLABS_API_KEY`; do not add it to Git or conversation text.
-3. Optionally set `ELEVENLABS_VOICE_ID` to your preferred voice ID. If it is empty, ChatGPT can call `list_elevenlabs_voices` and select an available narration voice automatically.
+3. Allow **Voices Read** and **Text to Speech** for that API key. Optionally set `ELEVENLABS_VOICE_ID` to your preferred voice ID. If it is empty, `finish_tutorial` lists account voices and chooses Roger when available, otherwise the first available voice. Voice listing requires `voices_read` permission.
 4. `ELEVENLABS_MODEL` defaults to `eleven_flash_v2_5` and is configurable. ElevenLabs currently lists Flash v2.5 as a balanced, lower-cost speech model; model and voice access still depend on your account. See [model selection](https://elevenlabs.io/docs/models) and the [Create speech API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert). The tool caches the MP3 when the script, voice, and model match, avoiding a second TTS request.
 
 The free tier's voice/model availability and quotas are controlled by ElevenLabs. TutorialFlow surfaces rate/quota, voice, and API-key errors without logging credentials.
@@ -48,7 +48,7 @@ The free tier's voice/model availability and quotas are controlled by ElevenLabs
 6. In ChatGPT developer mode, add the public MCP URL `https://YOUR-DOMAIN/mcp`. OpenAI's current walkthrough is [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 7. Start a new chat with the TutorialFlow connection and try a short recording.
 
-The root [`plugin.json`](plugin.json) packages the TutorialFlow skill and starter prompts, and [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) makes the local plugin discoverable in the desktop app. Once Railway assigns your domain, either add the MCP connection directly in ChatGPT developer mode or copy [`mcp.json.example`](mcp.json.example) to `mcp.json`, replace `YOUR-RAILWAY-DOMAIN`, then install the local plugin. OpenAI's current plugin package format keeps the skill under `skills/` and the remote MCP endpoint in `mcp.json`; see [Package your plugin](https://developers.openai.com/plugins/build/plugins).
+The root [`plugin.json`](plugin.json) packages the TutorialFlow skill and starter prompts for the Codex plugin. A ChatGPT custom MCP connection sees the server's MCP instructions and tool descriptions; it does not automatically load this repository's local `SKILL.md`. Once Railway assigns your domain, add the MCP connection directly in ChatGPT developer mode. For a Codex plugin, copy [`mcp.json.example`](mcp.json.example) to `mcp.json`, replace `YOUR-RAILWAY-DOMAIN`, then install the local plugin. See [Package your plugin](https://developers.openai.com/plugins/build/plugins).
 
 ### Environment variables
 
@@ -70,17 +70,15 @@ Set secrets in Railway's variable UI. A Railway Volume is optional: add a volume
 
 ## ChatGPT workflow
 
-The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) teaches ChatGPT the complete tutorial flow.
+The live MCP server advertises the complete flow in its instructions and tool descriptions. The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) applies when TutorialFlow is installed as a Codex plugin.
 
 1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.”
 2. `inspect_tutorial_video` streams it to Railway and returns metadata and the visual frames.
 3. ChatGPT inspects the images and writes a fact-grounded narration script.
-4. For a complete tutorial request, ChatGPT calls `save_tutorial_script`, then `generate_voiceover`; the Railway service sends the text to ElevenLabs using `ELEVENLABS_API_KEY` and stores the returned audio.
-5. ChatGPT calls `sync_tutorial` to render the video with the generated narration. It pauses for script approval only when you ask for a script draft or review.
-6. ChatGPT calls `build_thumbnail_brief`, inspects the evidence frame, and generates the thumbnail natively.
-7. `get_tutorial_result` provides the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
+4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with the grounded script and a short title. Railway chooses a voice, generates the ElevenLabs MP3, renders the MP4, and makes a branded PNG thumbnail from a real frame. It pauses for script approval only when you ask for a script draft or review.
+5. `finish_tutorial` returns the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
 
-The server does not create or alter the thumbnail image; ChatGPT does. The assistant should never ask you to upload ElevenLabs audio: the `generate_voiceover` tool creates it through the configured API key.
+The automatic thumbnail uses a real video frame and the selected brand colors and title. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
 
 ## Tools and endpoints
 
@@ -88,12 +86,13 @@ The server does not create or alter the thumbnail image; ChatGPT does. The assis
 - `list_elevenlabs_voices()` — live account voice list; does not assume any voice is available.
 - `save_tutorial_script(project_id, script)` — stores the ChatGPT-authored review draft.
 - `generate_voiceover(project_id, script, voice_id, model)` — cached ElevenLabs MP3.
+- `finish_tutorial(project_id, script, title, voice_id, brand)` — complete voice selection, narration, video render, thumbnail, and artifact URLs in one call.
 - `sync_tutorial(project_id, strategy)` — global video retiming and H.264/AAC MP4 render.
-- `build_thumbnail_brief(project_id, title, brand)` — text brief plus a real evidence frame.
+- `build_thumbnail_brief(project_id, title, brand)` — optional text brief plus a real evidence frame for native image generation.
 - `get_tutorial_result(project_id)` — project status and artifact URLs.
 - `delete_tutorial_project(project_id)` — removes one project.
 - `GET /health` — app and FFmpeg status, no ElevenLabs request.
-- `GET /artifacts/{project_id}/{path}?token=...` — allowlisted, temporary, token-protected download.
+- `GET /artifacts/{project_id}/{path}?token=...` — allowlisted, temporary, token-protected download, including `output/thumbnail.png`.
 
 ## Synchronization
 
@@ -129,6 +128,7 @@ Local health is `http://127.0.0.1:8000/health`; local MCP is `http://127.0.0.1:8
 - **No video stream / ffprobe failure:** try an MP4 encoded with H.264/AAC.
 - **No frames extracted:** confirm the video is not corrupt and FFmpeg can decode it.
 - **401 from ElevenLabs:** update `ELEVENLABS_API_KEY` in Railway.
+- **Missing `voices_read` permission:** enable Voices Read on the key in ElevenLabs or configure `ELEVENLABS_VOICE_ID` in Railway. Text to Speech permission is required to generate narration.
 - **429 from ElevenLabs:** free account quota or rate limit may be reached; wait or reduce regeneration.
 - **Voice unavailable:** select an ID returned by `list_elevenlabs_voices`.
 - **Artifact link fails:** use the link before its expiry; links expire with the project.

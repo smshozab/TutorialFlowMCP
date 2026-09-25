@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 import respx
 
 from tutorialflow.audio import elevenlabs
@@ -37,3 +38,11 @@ def test_validate_project_size():
         assert "exceeds" in str(exc)
     else:
         raise AssertionError("oversized upload should fail")
+
+
+def test_missing_voice_permission_is_actionable():
+    response = httpx.Response(401, json={
+        "detail": {"status": "missing_permissions", "message": "The API key is missing voices_read"}
+    })
+    with pytest.raises(elevenlabs.ElevenLabsError, match="Voices Read"):
+        elevenlabs._raise_api_error(response)

@@ -48,7 +48,7 @@ The free tier's voice/model availability and quotas are controlled by ElevenLabs
 6. In ChatGPT developer mode, add the public MCP URL `https://YOUR-DOMAIN/mcp`. OpenAI's current walkthrough is [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 7. Start a new chat with the TutorialFlow connection and try a short recording.
 
-The root [`plugin.json`](plugin.json) packages the TutorialFlow skill and starter prompts for the Codex plugin. A ChatGPT custom MCP connection sees the server's MCP instructions and tool descriptions; it does not automatically load this repository's local `SKILL.md`. Once Railway assigns your domain, add the MCP connection directly in ChatGPT developer mode. For a Codex plugin, copy [`mcp.json.example`](mcp.json.example) to `mcp.json`, replace `YOUR-RAILWAY-DOMAIN`, then install the local plugin. See [Package your plugin](https://developers.openai.com/plugins/build/plugins).
+The root [`plugin.json`](plugin.json), [`mcp.json`](mcp.json), and [`SKILL.md`](skills/tutorialflow/SKILL.md) form the portable plugin package. A ChatGPT developer-mode connection made directly from an MCP URL sees the server's MCP instructions and tool descriptions; it does not automatically install this repository's local skill. The bundled skill is available when the full plugin package is installed from the local marketplace. See [Package your plugin](https://developers.openai.com/plugins/build/plugins).
 
 ### Environment variables
 

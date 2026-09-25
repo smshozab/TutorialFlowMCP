@@ -144,7 +144,7 @@ def finish_tutorial(project_id: str, script: str, title: str, voice_id: str | No
             voices = [item for item in list_voices() if item.get("voice_id")]
             if not voices:
                 raise ElevenLabsError("No ElevenLabs voices are available. Add an account voice or set ELEVENLABS_VOICE_ID.")
-            preferred = next((item for item in voices if str(item.get("name", "")).casefold() == "roger"), None)
+            preferred = next((item for item in voices if str(item.get("name", "")).casefold().startswith("roger")), None)
             selected_voice = (preferred or voices[0])["voice_id"]
         make_voiceover(project_id, script, selected_voice)
         sync_video_tool(project_id)

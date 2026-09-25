@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tutorialflow",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Turn screen recordings into accurate narrated software tutorials.",
   "license": "MIT",
   "keywords": ["tutorials", "screen recording", "video", "voiceover", "MCP"],
@@ -10,11 +10,11 @@
       "interface": {
         "displayName": "TutorialFlow",
         "shortDescription": "Create narrated tutorials from screen recordings.",
-        "longDescription": "Inspect real recording frames, draft an accurate narration script, synchronize ElevenLabs voiceover with the video, and prepare a ChatGPT-generated thumbnail.",
+        "longDescription": "Inspect real recording frames, then create ElevenLabs narration, a synchronized MP4, and a branded thumbnail with one completion tool.",
         "category": "Productivity",
         "capabilities": ["Read", "Write"],
         "defaultPrompt": [
-          "Create a tutorial from this screen recording.",
+          "Create the complete narrated tutorial from this screen recording, including the MP4, MP3, script, and thumbnail.",
           "Inspect this recording and draft a tutorial script for my review."
         ],
         "brandColor": "#16734A"

@@ -42,7 +42,10 @@ def test_finish_tutorial_runs_voice_render_and_thumbnail_in_one_call(monkeypatch
     events = []
     monkeypatch.setattr(server, "settings", SimpleNamespace(elevenlabs_voice_id=""))
     monkeypatch.setattr(server, "save_script_tool", lambda *_args: events.append("script"))
-    monkeypatch.setattr(server, "list_voices", lambda: [{"name": "Roger", "voice_id": "roger-id"}])
+    monkeypatch.setattr(server, "list_voices", lambda: [
+        {"name": "Another Voice", "voice_id": "other-id"},
+        {"name": "Roger - Laid-Back, Casual, Resonant", "voice_id": "roger-id"},
+    ])
     monkeypatch.setattr(server, "make_voiceover", lambda *_args: events.append("voice"))
     monkeypatch.setattr(server, "sync_video_tool", lambda *_args: events.append("render"))
     monkeypatch.setattr(server, "render_thumbnail", lambda *_args: events.append("thumbnail"))

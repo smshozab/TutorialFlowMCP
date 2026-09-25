@@ -3,7 +3,7 @@
   "mcpServers": {
     "tutorialflow": {
       "type": "streamable-http",
-      "url": "https://YOUR-RAILWAY-DOMAIN/mcp"
+      "url": "https://YOUR-RAILWAY-DOMAIN.up.railway.app/mcp"
     }
   }
 }

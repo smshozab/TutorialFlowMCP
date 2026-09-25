@@ -2,6 +2,47 @@
 
 TutorialFlow is a Railway-first MCP server that inspects a screen recording, returns real visual evidence to ChatGPT, and then uses FFmpeg and ElevenLabs to create a narrated tutorial. ChatGPT performs the visual reasoning and writes the script. Railway creates a consistent thumbnail from a real frame, and ChatGPT may optionally create a more elaborate image with its native image-generation capability. No OpenAI or other vision API is called by the backend.
 
+## Install your own copy
+
+This repository is public, but the running service is **not a shared hosted product**. Each friend or peer should deploy their own Railway service with their own ElevenLabs API key. The checked-in [`mcp.json`](mcp.json) contains a placeholder URL so installing a copy cannot silently use the maintainer's Railway service or ElevenLabs credits. The MCP endpoint has no user authentication yet; see [Security notes](#security-notes) before inviting others to one deployment.
+
+### 1. Fork and deploy
+
+1. [Fork TutorialFlowMCP on GitHub](https://github.com/smshozab/TutorialFlowMCP/fork) into your account. A local Python or FFmpeg installation is **not** needed for Railway use.
+2. In [ElevenLabs](https://elevenlabs.io/), create an API key with **Voices Read** and **Text to Speech** access. Keep the key secret and set an account or key usage limit you are comfortable with. You need the **API key secret**, not the key ID.
+3. In [Railway](https://railway.com/), create a project, choose **Deploy from GitHub repo**, and select your fork. The included `Dockerfile` installs Python and FFmpeg. Railway hosting and ElevenLabs usage may incur charges.
+4. In the Railway service's **Variables** tab, set `ELEVENLABS_API_KEY` to your secret. Set `ARTIFACT_SECRET` to a long random value and, if desired, `PROJECT_TTL_HOURS=24` (the default). Leave `PORT` to Railway; the Docker start command uses it automatically.
+5. In **Settings → Networking → Public Networking**, select **Generate Domain**. Copy the resulting HTTPS base URL, for example `https://your-service.up.railway.app`.
+6. Set `APP_BASE_URL` in Railway to that exact base URL, **without** `/mcp` or a trailing slash, and deploy the variable change.
+7. Open `https://your-service.up.railway.app/health` using your actual domain. It should report `"status":"ok"`, `"ffmpeg":true`, and `"ffprobe":true`. The health check does not spend ElevenLabs credits.
+
+See [Railway's service deployment guide](https://docs.railway.com/services) and [public networking guide](https://docs.railway.com/networking/public-networking) for the current UI. [All configuration variables](#environment-variables) are listed below.
+
+### 2. Connect it to ChatGPT
+
+1. Use a ChatGPT account and workspace that permits developer mode and MCP **write** actions. Access depends on plan and workspace policy; see [OpenAI's current availability guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt). Read/fetch-only access cannot complete the render workflow.
+2. Enable **Developer mode** in ChatGPT, open **Plugins**, and select **+** to add a connection. Enter a name such as `TutorialFlow` and the server URL `https://your-service.up.railway.app/mcp`. Use your own Railway domain. The current server has **No Auth**; connect only to a deployment you control and trust.
+3. Review the discovered tools. You should see `inspect_tutorial_video`, `finish_tutorial`, and `list_elevenlabs_voices`. Start a **new chat** and select the TutorialFlow connection from the tools menu.
+4. Attach a short MP4 screen recording and ask: **“Create the complete narrated tutorial from this recording. Inspect it, then use finish_tutorial to produce the MP4, ElevenLabs MP3, script, and thumbnail.”** ChatGPT should inspect actual frames, write the script, and call `finish_tutorial`; you do **not** need to provide an ElevenLabs audio file.
+5. Download the returned files before the project expires (24 hours by default). If you want to approve the wording first, explicitly ask for a script draft for review instead of a complete tutorial.
+
+ChatGPT's [connection walkthrough](https://developers.openai.com/plugins/deploy/connect-chatgpt) covers the current developer-mode screens. A direct MCP connection loads the server's tools and instructions, **not** the [`SKILL.md`](skills/tutorialflow/SKILL.md) in this GitHub repo. The explicit prompt above works with a direct connection; the optional local plugin package below also bundles the skill.
+
+### 3. Optional: install the bundled skill in ChatGPT desktop or Codex
+
+Use this if you want the repeatable TutorialFlow workflow from the repository's skill, in addition to the direct MCP connection.
+
+1. Clone **your fork** (or download and extract its ZIP) on the computer running ChatGPT desktop or Codex.
+2. Edit the root `mcp.json` in that local copy. Replace `https://YOUR-RAILWAY-DOMAIN.up.railway.app/mcp` with **your** Railway `/mcp` URL. Do not commit the edited file to a public fork if you want to keep the endpoint URL private.
+3. Open the cloned folder as a project in Codex, then restart the ChatGPT desktop app. In the **Plugins Directory**, choose the repo's **TutorialFlow** local marketplace and install the plugin. If the marketplace does not appear, run `codex plugin marketplace add ./` from the cloned folder, restart the app, and look again. The repository already includes `.agents/plugins/marketplace.json`.
+4. Start a new chat with TutorialFlow enabled. A direct ChatGPT web connection from step 2 can be used separately; installing the local package is what makes the bundled skill available on supported local surfaces.
+
+The [OpenAI plugin packaging and local marketplace guide](https://developers.openai.com/plugins/build/plugins) explains the local install flow. The plugin's `mcp.json` is a **template** until you replace its URL; do not install it with the placeholder.
+
+### Updating your copy
+
+After a new version is pushed here, sync your fork and let Railway redeploy (or deploy the new commit). If tool names or schemas changed, open your ChatGPT connection in **Plugins → Refresh**, then start a new chat. For the local plugin package, update your local checkout, reapply your own URL in `mcp.json`, refresh the local marketplace or reinstall the plugin, and restart the app. See [OpenAI's metadata refresh steps](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata).
+
 ## Architecture
 
 ```text
@@ -23,7 +64,7 @@ Each source is streamed to one temporary project directory. Frame sampling combi
 
 - Python 3.11+ for local development
 - FFmpeg and ffprobe (preinstalled in the Docker image; no local installation required for Railway use)
-- Railway Hobby service
+- A Railway project with enough memory and temporary disk for your recordings; Hobby is recommended for regular FFmpeg use, while Trial/Free limits may be restrictive ([current limits](https://railway.com/pricing))
 - ElevenLabs API key for voice generation
 - A ChatGPT account and plan/workspace that supports the required MCP tool actions
 
@@ -38,19 +79,7 @@ ChatGPT product access can vary by plan and workspace policy. Current OpenAI gui
 
 The free tier's voice/model availability and quotas are controlled by ElevenLabs. TutorialFlow surfaces rate/quota, voice, and API-key errors without logging credentials.
 
-## Deploy to Railway
-
-1. Push this repository to a private GitHub repository.
-2. In Railway, create a project and deploy from that GitHub repository. Railway builds the included Dockerfile, which installs FFmpeg in a small Python 3.11 slim image.
-3. Add the environment variables below in the Railway service settings.
-4. Generate a public HTTPS domain. Set `APP_BASE_URL` to that exact URL, without a trailing slash.
-5. Wait for `/health` to report `ffmpeg: true` and `ffprobe: true`.
-6. In ChatGPT developer mode, add the public MCP URL `https://YOUR-DOMAIN/mcp`. OpenAI's current walkthrough is [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt).
-7. Start a new chat with the TutorialFlow connection and try a short recording.
-
-The root [`plugin.json`](plugin.json), [`mcp.json`](mcp.json), and [`SKILL.md`](skills/tutorialflow/SKILL.md) form the portable plugin package. A ChatGPT developer-mode connection made directly from an MCP URL sees the server's MCP instructions and tool descriptions; it does not automatically install this repository's local skill. The bundled skill is available when the full plugin package is installed from the local marketplace. See [Package your plugin](https://developers.openai.com/plugins/build/plugins).
-
-### Environment variables
+## Environment variables
 
 | Variable | Default | Purpose |
 |---|---:|---|
@@ -70,7 +99,7 @@ Set secrets in Railway's variable UI. A Railway Volume is optional: add a volume
 
 ## ChatGPT workflow
 
-The live MCP server advertises the complete flow in its instructions and tool descriptions. The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) applies when TutorialFlow is installed as a Codex plugin.
+The live MCP server advertises the complete flow in its instructions and tool descriptions. The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) applies when the full TutorialFlow plugin package is installed on a supported local surface.
 
 1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.”
 2. `inspect_tutorial_video` streams it to Railway and returns metadata and the visual frames.
@@ -134,12 +163,15 @@ Local health is `http://127.0.0.1:8000/health`; local MCP is `http://127.0.0.1:8
 - **Artifact link fails:** use the link before its expiry; links expire with the project.
 - **Railway storage pressure:** lower `PROJECT_TTL_HOURS`, use ephemeral storage, or delete completed projects manually.
 - **ChatGPT cannot connect:** check that Railway serves HTTPS and the MCP path ends in `/mcp`; confirm your ChatGPT account/workspace permits the tools you need.
+- **Health endpoint returns 502:** confirm the Railway public domain's target port matches the port the service listens on (`PORT`, or 8000 when unset). Check the deployment logs for the Uvicorn startup line.
+- **Only a script appears:** select TutorialFlow in the new chat and ask for the complete tutorial, including a `finish_tutorial` call. A direct MCP connection does not install the repository's skill.
+- **Local plugin cannot connect:** replace the placeholder in your local `mcp.json` with your own deployed `/mcp` URL, then refresh or reinstall the local plugin.
 
 ## Security notes
 
 Upload URLs must be HTTPS and resolve to public addresses; redirects are revalidated. Downloads are size limited and streamed. Tool paths are constrained to a strict project ID pattern, and downloadable artifact paths are allowlisted. Artifact tokens are random and stored as peppered hashes for validation. API credentials are environment-only and omitted from logs and tool output.
 
-The MCP endpoint itself currently has no user OAuth layer. Keep the Railway URL private while testing and use a trusted ChatGPT connection. Before public distribution or use by multiple people, add MCP OAuth 2.1 and per-user project isolation; OpenAI's [authentication guidance](https://developers.openai.com/plugins/build/auth) describes the required authorization flow. Artifact tokens protect downloads, but do not authenticate MCP tool callers.
+The MCP endpoint itself currently has no user OAuth layer. Anyone who obtains its URL can call its tools, including actions that spend the configured ElevenLabs credits or consume Railway resources. Keep your own Railway URL private while testing, set ElevenLabs usage limits, and use a trusted ChatGPT connection. **Do not share one Railway endpoint with multiple people** until MCP OAuth 2.1, per-user project isolation, and usage limits are implemented; OpenAI's [authentication guidance](https://developers.openai.com/plugins/build/auth) describes the authorization flow. Artifact tokens protect downloads, but do not authenticate MCP tool callers.
 
 ## Roadmap
 

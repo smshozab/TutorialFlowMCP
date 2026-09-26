@@ -76,8 +76,8 @@ mcp = MCPServer(
 
 
 @mcp.tool(meta={"openai/fileParams": ["video"]})
-def inspect_tutorial_video(video: ChatGPTFile, brand: str = "education_global"):
-    """Inspect an uploaded recording and return its actual frames. Brand accepts education_global/Education Global or default/TutorialFlow."""
+def inspect_tutorial_video(video: ChatGPTFile, brand: str = "general"):
+    """Inspect an uploaded recording and return its actual frames. Uses neutral, generic styling by default."""
     try:
         details = inspect_video(video.model_dump(exclude_none=True), canonical_brand_preset(brand))
     except (TypeError, ValueError, ProjectError) as exc:
@@ -122,7 +122,7 @@ def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
 
 
 @mcp.tool()
-def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_global"):
+def build_thumbnail_brief(project_id: str, title: str, brand: str = "general"):
     """Optional manual brief for native image generation. Auto mode creates a thumbnail in finish_tutorial."""
     try:
         brief = make_thumbnail_brief(project_id, title, canonical_brand_preset(brand))
@@ -134,7 +134,7 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_g
 
 @mcp.tool(annotations={"destructiveHint": False, "readOnlyHint": False})
 def finish_tutorial(project_id: str, script: str, title: str, voice_id: str | None = None,
-                    brand: str = "education_global") -> dict:
+                    brand: str = "general") -> dict:
     """Complete an inspected tutorial in one call: choose a voice, generate ElevenLabs MP3, sync MP4, create thumbnail, return links. Never ask the user for audio."""
     try:
         selected_brand = canonical_brand_preset(brand)

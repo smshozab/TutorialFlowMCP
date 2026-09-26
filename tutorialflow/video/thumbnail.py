@@ -34,7 +34,7 @@ def _wrap_title(draw: ImageDraw.ImageDraw, title: str, font: ImageFont.ImageFont
     return lines
 
 
-def render_thumbnail(project_id: str, title: str, brand: str = "education_global") -> dict:
+def render_thumbnail(project_id: str, title: str, brand: str = "general") -> dict:
     brief = build_thumbnail_brief(project_id, title, brand)
     root = project_path(project_id)
     screenshot = root / brief["evidence_frame_path"]
@@ -56,9 +56,6 @@ def render_thumbnail(project_id: str, title: str, brand: str = "education_global
     for line in title_lines[:5]:
         draw.text((58, y), line, font=title_font, fill="#FFFFFF")
         y += size + 15
-    brand_name = str(brief["brand"].get("name", "TutorialFlow"))
-    draw.text((58, 640), brand_name.upper(), font=_font(20), fill="#FFFFFF")
-
     draw.rounded_rectangle((560, 102, 1245, 622), radius=20, fill="#DAE5DF")
     draw.rounded_rectangle((552, 94, 1237, 614), radius=20, fill="#FFFFFF")
     with Image.open(screenshot) as source:

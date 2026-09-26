@@ -75,7 +75,7 @@ def test_frame_extraction_converts_png_to_jpeg(tmp_path, monkeypatch):
     assert not list((tmp_path / "frames").glob("*.png"))
 
 
-def test_branded_thumbnail_uses_actual_frame(tmp_path, monkeypatch):
+def test_general_thumbnail_uses_actual_frame(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     from tutorialflow.storage import workspace
@@ -91,7 +91,7 @@ def test_branded_thumbnail_uses_actual_frame(tmp_path, monkeypatch):
     record["frames"] = [{"time_seconds": 1.0, "path": "frames/frame_01.jpg"}]
     workspace.save_project(project_id, record)
 
-    result = render_thumbnail(project_id, "Generate a Statement of Marks", "Education Global")
+    result = render_thumbnail(project_id, "Generate a Statement of Marks", "general")
     assert result["path"] == "output/thumbnail.png"
     with Image.open(root / result["path"]) as thumbnail:
         assert thumbnail.size == (1280, 720)

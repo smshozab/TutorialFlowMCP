@@ -1,6 +1,6 @@
 ---
 name: tutorialflow
-description: Create a complete narrated software tutorial from an uploaded screen recording with TutorialFlow MCP tools, including ElevenLabs voiceover, synchronized video, and a branded thumbnail. Use script-only when the user explicitly requests a draft or review.
+description: Create a complete narrated software tutorial from an uploaded screen recording with TutorialFlow MCP tools, including ElevenLabs voiceover, synchronized video, and a neutral thumbnail. Use script-only when the user explicitly requests a draft or review.
 ---
 
 # TutorialFlow workflow
@@ -9,10 +9,10 @@ Use this skill when the user uploads a screen recording and asks to create, star
 
 ## Complete tutorial (default when the user asks to create or produce a tutorial)
 
-1. Call `inspect_tutorial_video` with the uploaded video file and desired brand. The tool accepts ChatGPT file parameters; do not ask for a local path or public URL. Brand names may be supplied as preset IDs or display names, such as `education_global` or `Education Global`.
+1. Call `inspect_tutorial_video` with the uploaded video file. It uses a neutral, generic thumbnail style by default. The tool accepts ChatGPT file parameters; do not ask for a local path or public URL.
 2. Visually inspect the returned contact sheet and keyframe images. Base the topic, pages, clicks, text, dropdown choices, errors, confirmations, and final state only on the actual images. Never infer from the filename. If the frames do not establish an action, omit it or tell the user what evidence is unclear.
 3. Draft concise, professional narration in chronological order. Only describe visibly supported actions. Mention example values only if readable. Do not claim an action succeeded unless the recording visibly shows success. Target the returned recommended word count (about 150 words/minute, within the returned range).
-4. For a complete tutorial request, call `finish_tutorial` once with the inspected `project_id`, the narration script, and a concise title. Railway selects an available account voice, calls ElevenLabs, renders the synchronized video, creates a branded thumbnail from a real frame, and returns the artifacts. Never ask the user to provide pre-generated ElevenLabs audio.
+4. For a complete tutorial request, call `finish_tutorial` once with the inspected `project_id`, the narration script, and a concise title. Railway selects an available account voice, calls ElevenLabs, renders the synchronized video, creates a neutral thumbnail from a real frame, and returns the artifacts. Never ask the user to provide pre-generated ElevenLabs audio.
 5. Return the MP4, PNG thumbnail, script, and optional MP3 links. Mention the project expiry time. Keep the wrap-up concise.
 
 ## Script-only or review requests

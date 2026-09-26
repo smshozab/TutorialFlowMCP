@@ -81,7 +81,7 @@ def _stream_chatgpt_file(download_url: str, target: Path) -> int:
             target.unlink(missing_ok=True)
 
 
-def inspect_video(video: dict, brand: str = "education_global") -> dict:
+def inspect_video(video: dict, brand: str = "general") -> dict:
     if not isinstance(video, dict) or not video.get("download_url") or not video.get("file_id"):
         raise ValueError("Attach a screen recording using ChatGPT's file upload control.")
     brand = canonical_brand_preset(brand)

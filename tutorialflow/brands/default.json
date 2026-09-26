@@ -1,8 +1,9 @@
 {
-  "name": "TutorialFlow",
-  "theme": "clean green and white",
-  "style": "clear, modern software tutorial",
-  "layout": "large headline and recognizable software UI",
+  "name": "General",
+  "theme": "neutral slate, white, and soft blue",
+  "style": "clean, neutral tutorial design guided by the actual recording",
+  "layout": "clear headline beside a large, readable frame from the recording",
+  "colors": {"primary": "#354B5E", "accent": "#6AAED6", "background": "#F4F7F9", "text": "#17232D"},
   "tutorial_badge": true,
   "people": false
 }

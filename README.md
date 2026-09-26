@@ -101,17 +101,17 @@ Set secrets in Railway's variable UI. A Railway Volume is optional: add a volume
 
 The live MCP server advertises the complete flow in its instructions and tool descriptions. The bundled [`SKILL.md`](skills/tutorialflow/SKILL.md) applies when the full TutorialFlow plugin package is installed on a supported local surface.
 
-1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.”
+1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.” The thumbnail uses a neutral general style by default, with the real screen recording as its visual reference.
 2. `inspect_tutorial_video` streams it to Railway and returns metadata and the visual frames.
 3. ChatGPT inspects the images and writes a fact-grounded narration script.
-4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with the grounded script and a short title. Railway chooses a voice, generates the ElevenLabs MP3, renders the MP4, and makes a branded PNG thumbnail from a real frame. It pauses for script approval only when you ask for a script draft or review.
+4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with the grounded script and a short title. Railway chooses a voice, generates the ElevenLabs MP3, renders the MP4, and makes a neutral PNG thumbnail from a real frame. It pauses for script approval only when you ask for a script draft or review.
 5. `finish_tutorial` returns the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
 
-The automatic thumbnail uses a real video frame and the selected brand colors and title. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
+The automatic thumbnail uses a real video frame, neutral styling, and the tutorial title. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result; its prompt can preserve app branding that is clearly visible in that frame. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
 
 ## Tools and endpoints
 
-- `inspect_tutorial_video(video, brand)` — ChatGPT file parameter, streaming upload, metadata, contact sheet, frame image blocks. Brand preset IDs and display names are accepted (for example, `education_global` or `Education Global`).
+- `inspect_tutorial_video(video, brand="general")` — ChatGPT file parameter, streaming upload, metadata, contact sheet, frame image blocks. The default thumbnail style is neutral and generic; the supplied frame guides the visual context.
 - `list_elevenlabs_voices()` — live account voice list; does not assume any voice is available.
 - `save_tutorial_script(project_id, script)` — stores the ChatGPT-authored review draft.
 - `generate_voiceover(project_id, script, voice_id, model)` — cached ElevenLabs MP3.

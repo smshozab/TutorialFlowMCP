@@ -4,19 +4,18 @@ import re
 
 
 def canonical_brand_preset(value: str) -> str:
-    """Accept preset IDs and display names while limiting selection to bundled brands."""
+    """Accept the neutral generic brand preset and its legacy alias."""
     if not isinstance(value, str):
-        raise TypeError("Brand must be `education_global` (Education Global) or `default` (TutorialFlow).")
+        raise TypeError("Brand must be `general`.")
     slug = re.sub(r"[^a-z0-9]+", "_", value.strip().casefold()).strip("_")
     aliases = {
+        "general": "default",
         "default": "default",
         "tutorialflow": "default",
-        "education_global": "education_global",
-        "educationglobal": "education_global",
     }
     try:
         return aliases[slug]
     except KeyError as exc:
         raise ValueError(
-            "Unknown brand preset. Use `education_global` (Education Global) or `default` (TutorialFlow)."
+            "Unknown brand preset. Use `general`."
         ) from exc

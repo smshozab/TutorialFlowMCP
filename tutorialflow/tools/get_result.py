@@ -36,14 +36,14 @@ def get_tutorial_result(project_id: str) -> dict:
     return result
 
 
-def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_global") -> dict:
+def build_thumbnail_brief(project_id: str, title: str, brand: str = "general") -> dict:
     record = load_project(project_id)
     if not title.strip() or len(title) > 120:
         raise ValueError("Provide a concise thumbnail title of at most 120 characters.")
     brand = canonical_brand_preset(brand)
     brand_file = BRANDS / f"{brand}.json"
     if brand_file.resolve().parent != BRANDS.resolve() or not brand_file.is_file():
-        raise ValueError("Unknown brand preset. Available presets: default, education_global.")
+        raise ValueError("Unknown brand preset. Use `general`.")
     guidelines = json.loads(brand_file.read_text(encoding="utf-8"))
     keyframes = record.get("frames", [])
     if not keyframes:
@@ -58,10 +58,11 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "education_g
         "prompt": (
             f"Create a landscape 16:9 tutorial thumbnail titled exactly: {title}. "
             f"Use the attached recording frame as the factual topic and UI reference. "
-            f"Match this brand style: {guidelines.get('style')}; colors {guidelines.get('colors', guidelines.get('theme'))}; "
-            f"layout: {guidelines.get('layout')}. Include a small tutorial badge. "
+            f"Use a neutral general style: {guidelines.get('style')}; colors {guidelines.get('colors', guidelines.get('theme'))}; "
+            f"layout: {guidelines.get('layout')}. Include a small tutorial badge, with no fixed company or school branding. "
+            "If an app name, logo, or brand colors are clearly visible in the supplied frame, preserve only those real details. "
             "No people. Do not invent interface text or product features; keep UI text abstract where unreadable. "
-            "Use bold, highly legible title typography and a clean SaaS education aesthetic."
+            "Use bold, highly legible title typography and let the supplied frame guide the visual context."
         ),
     }
     from tutorialflow.storage.workspace import save_project

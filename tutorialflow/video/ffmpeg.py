@@ -23,7 +23,8 @@ def render_command(video: str, audio: str, output: str, video_duration: float, a
         raise ValueError("Narration/video duration ratio is outside the safe range (0.25–4.0). Revise the script.")
     return [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", video, "-i", audio,
-        "-filter:v", f"setpts={factor:.8f}*PTS", "-map", "0:v:0", "-map", "1:a:0",
+        "-filter:v", f"setpts={factor:.8f}*PTS-{factor:.8f}*STARTPTS",
+        "-af", "asetpts=PTS-STARTPTS", "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "160k", "-t", f"{audio_duration:.3f}",
         "-movflags", "+faststart", "-y", output,

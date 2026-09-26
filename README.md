@@ -125,7 +125,7 @@ The automatic thumbnail uses a real video frame and the selected brand colors an
 
 ## Synchronization
 
-The MVP globally retimes the source video to the narration duration. If the narration is shorter, video speeds up; if it is longer, the video slows down. Extreme ratios outside 0.25–4.0 are rejected so the user can revise the script. The original video and audio tracks are not joined as a mix: output audio is the generated narration. Segment-aware alignment, silence trimming, cursor detection, subtitles, and zooms remain future work.
+The renderer uses the video stream's own duration (rather than the container duration, which may include a longer source audio track), resets both media timestamps to zero, and then retimes the video to the generated narration duration. This avoids inherited start offsets and duration drift from recordings with mismatched video/audio tracks. If the narration is shorter, video speeds up; if it is longer, the video slows down. Extreme ratios outside 0.25–4.0 are rejected so the user can revise the script. The original recording audio is replaced with the generated narration. Segment-aware action-to-speech alignment, silence trimming, cursor detection, subtitles, and zooms remain future work.
 
 ## Cleanup and project limits
 

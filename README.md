@@ -107,7 +107,7 @@ The live MCP server advertises the complete flow in its instructions and tool de
 4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with the grounded script and a short title. Railway chooses a voice, generates the ElevenLabs MP3, renders the MP4, and makes a neutral PNG thumbnail from a real frame. It pauses for script approval only when you ask for a script draft or review.
 5. `finish_tutorial` returns the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
 
-The automatic thumbnail uses a real video frame, neutral styling, and the tutorial title. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result; its prompt can preserve app branding that is clearly visible in that frame. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
+The automatic thumbnail uses a modern dark layout, a large real video frame, the tutorial title, and a compact product identity badge when the app name is visible. The screenshot preserves the actual product logo if it appears in the recording. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result; the brief tells it to use only visible app branding. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
 
 ## Tools and endpoints
 
@@ -115,9 +115,9 @@ The automatic thumbnail uses a real video frame, neutral styling, and the tutori
 - `list_elevenlabs_voices()` — live account voice list; does not assume any voice is available.
 - `save_tutorial_script(project_id, script)` — stores the ChatGPT-authored review draft.
 - `generate_voiceover(project_id, script, voice_id, model)` — cached ElevenLabs MP3.
-- `finish_tutorial(project_id, script, title, voice_id, brand)` — complete voice selection, narration, video render, thumbnail, and artifact URLs in one call.
+- `finish_tutorial(project_id, script, title, voice_id, brand, product_name)` — complete voice selection, narration, video render, thumbnail, and artifact URLs in one call. `product_name` is optional and should match a name visible in the recording.
 - `sync_tutorial(project_id, strategy)` — global video retiming and H.264/AAC MP4 render.
-- `build_thumbnail_brief(project_id, title, brand)` — optional text brief plus a real evidence frame for native image generation.
+- `build_thumbnail_brief(project_id, title, brand, product_name)` — optional text brief plus a real evidence frame for native image generation.
 - `get_tutorial_result(project_id)` — project status and artifact URLs.
 - `delete_tutorial_project(project_id)` — removes one project.
 - `GET /health` — app and FFmpeg status, no ElevenLabs request.

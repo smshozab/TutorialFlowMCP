@@ -36,10 +36,15 @@ def get_tutorial_result(project_id: str) -> dict:
     return result
 
 
-def build_thumbnail_brief(project_id: str, title: str, brand: str = "general") -> dict:
+def build_thumbnail_brief(project_id: str, title: str, brand: str = "general",
+                          product_name: str | None = None) -> dict:
     record = load_project(project_id)
     if not title.strip() or len(title) > 120:
         raise ValueError("Provide a concise thumbnail title of at most 120 characters.")
+    if product_name is not None:
+        if not isinstance(product_name, str):
+            raise TypeError("Product name must be text visible in the recording.")
+        product_name = " ".join(product_name.split())[:40].strip() or None
     brand = canonical_brand_preset(brand)
     brand_file = BRANDS / f"{brand}.json"
     if brand_file.resolve().parent != BRANDS.resolve() or not brand_file.is_file():
@@ -54,15 +59,17 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "general") -
     record["thumbnail_brief"] = {
         "title": title,
         "brand": guidelines,
+        "product_name": product_name,
         "evidence_frame": relative,
         "prompt": (
-            f"Create a landscape 16:9 tutorial thumbnail titled exactly: {title}. "
+            f"Create a polished, modern landscape 16:9 software tutorial thumbnail titled exactly: {title}. "
             f"Use the attached recording frame as the factual topic and UI reference. "
             f"Use a neutral general style: {guidelines.get('style')}; colors {guidelines.get('colors', guidelines.get('theme'))}; "
-            f"layout: {guidelines.get('layout')}. Include a small tutorial badge, with no fixed company or school branding. "
-            "If an app name, logo, or brand colors are clearly visible in the supplied frame, preserve only those real details. "
+            f"layout: {guidelines.get('layout')}. Product name: {product_name or 'not identified'}. "
+            "Make the captured software screen large and easy to recognize. Add a clean title panel, subtle depth, and a compact product identity badge. "
+            "If a real product name or logo is visible in the screenshot, preserve it accurately; otherwise do not invent a logo or brand. "
             "No people. Do not invent interface text or product features; keep UI text abstract where unreadable. "
-            "Use bold, highly legible title typography and let the supplied frame guide the visual context."
+            "Use strong contrast, crisp composition, restrained gradients, and highly legible title typography."
         ),
     }
     from tutorialflow.storage.workspace import save_project

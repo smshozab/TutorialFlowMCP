@@ -67,7 +67,8 @@ mcp = MCPServer(
         "An uploaded video addressed to TutorialFlow requests the complete tutorial unless the user explicitly "
         "asks for script review or script only. First call inspect_tutorial_video and inspect its returned frames. "
         "Never infer actions from the filename. Write a narration script grounded in those frames, then call "
-        "finish_tutorial once with the returned project_id, the script, and a short title. That single tool "
+        "finish_tutorial once with the returned project_id, the script, and a short title. Include product_name "
+        "only when the application name is clearly visible in the recording. That single tool "
         "chooses a voice, calls ElevenLabs, renders the synchronized MP4, and creates the thumbnail on Railway. "
         "Return the artifact links. Never ask the user to provide ElevenLabs audio. If inspection or completion "
         "fails, report the exact tool error and stop."
@@ -122,10 +123,11 @@ def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
 
 
 @mcp.tool()
-def build_thumbnail_brief(project_id: str, title: str, brand: str = "general"):
-    """Optional manual brief for native image generation. Auto mode creates a thumbnail in finish_tutorial."""
+def build_thumbnail_brief(project_id: str, title: str, brand: str = "general",
+                          product_name: str | None = None):
+    """Optional manual brief for native image generation. Pass product_name only when visible in the recording."""
     try:
-        brief = make_thumbnail_brief(project_id, title, canonical_brand_preset(brand))
+        brief = make_thumbnail_brief(project_id, title, canonical_brand_preset(brand), product_name)
     except (TypeError, ValueError, ProjectError) as exc:
         raise ToolError(str(exc)) from exc
     path = resolve_artifact(project_id, brief["evidence_frame_path"])
@@ -134,8 +136,8 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "general"):
 
 @mcp.tool(annotations={"destructiveHint": False, "readOnlyHint": False})
 def finish_tutorial(project_id: str, script: str, title: str, voice_id: str | None = None,
-                    brand: str = "general") -> dict:
-    """Complete an inspected tutorial in one call: choose a voice, generate ElevenLabs MP3, sync MP4, create thumbnail, return links. Never ask the user for audio."""
+                    brand: str = "general", product_name: str | None = None) -> dict:
+    """Complete an inspected tutorial in one call. If visible, include the product_name exactly as shown in the recording for the thumbnail's product badge. Never invent a logo or ask for audio."""
     try:
         selected_brand = canonical_brand_preset(brand)
         save_script_tool(project_id, script)
@@ -150,7 +152,7 @@ def finish_tutorial(project_id: str, script: str, title: str, voice_id: str | No
         sync_video_tool(project_id)
         thumbnail_error = None
         try:
-            render_thumbnail(project_id, title, selected_brand)
+            render_thumbnail(project_id, title, selected_brand, product_name)
         except (OSError, TypeError, ValueError, ProjectError) as exc:
             thumbnail_error = str(exc)
             logger.error("Thumbnail creation failed project_id=%s reason=%s", project_id, thumbnail_error)

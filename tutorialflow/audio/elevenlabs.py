@@ -18,12 +18,18 @@ class ElevenLabsError(RuntimeError):
 def _raise_api_error(response: httpx.Response) -> None:
     if response.is_success:
         return
+    # Streaming responses have not been buffered yet. Read the error body before
+    # asking httpx to decode JSON, otherwise it raises StreamConsumed and masks
+    # ElevenLabs' useful error payload.
+    response.read()
     detail = {}
     try:
         payload = response.json()
-        candidate = payload.get("detail", {}) if isinstance(payload, dict) else {}
+        candidate = payload.get("detail", payload) if isinstance(payload, dict) else {}
         if isinstance(candidate, dict):
             detail = candidate
+        elif isinstance(candidate, str):
+            detail = {"message": candidate}
     except (ValueError, json.JSONDecodeError):
         pass
     if detail.get("status") == "api_key_id_used_as_api_key":
@@ -31,7 +37,7 @@ def _raise_api_error(response: httpx.Response) -> None:
     elif detail.get("status") == "missing_permissions":
         missing = detail.get("message", "")
         if "voices_read" in missing:
-            message = "The ElevenLabs API key lacks Voices Read (voices_read). Enable that permission on the key, or configure ELEVENLABS_VOICE_ID to bypass voice listing. Text to Speech permission is also required for narration."
+            message = "The ElevenLabs API key lacks Voices Read (voices_read). Enable it so TutorialFlow can verify and select Roger. Text to Speech permission is also required for narration."
         else:
             message = f"The ElevenLabs API key lacks a required permission: {missing or 'check the key restrictions'}."
     elif response.status_code == 401 or detail.get("code") == "invalid_api_key":
@@ -39,9 +45,15 @@ def _raise_api_error(response: httpx.Response) -> None:
     elif response.status_code == 429:
         message = "ElevenLabs rate limit or account quota reached. Wait or check your plan quota."
     elif response.status_code == 422:
-        message = "ElevenLabs rejected the voice or model. Check that both are available to your account."
+        api_message = detail.get("message")
+        message = (f"ElevenLabs rejected the voice or model: {api_message[:400]}"
+                   if isinstance(api_message, str) and api_message else
+                   "ElevenLabs rejected the voice or model. Check that both are available to your account.")
     else:
-        message = f"ElevenLabs request failed (HTTP {response.status_code})."
+        api_message = detail.get("message")
+        message = (f"ElevenLabs request failed (HTTP {response.status_code}): {api_message[:400]}"
+                   if isinstance(api_message, str) and api_message else
+                   f"ElevenLabs request failed (HTTP {response.status_code}).")
     raise ElevenLabsError(message)
 
 

@@ -34,7 +34,10 @@ from tutorialflow.storage.workspace import (
     resolve_artifact,
     validate_artifact_token,
 )
-from tutorialflow.tools.generate_voice import generate_voiceover as make_voiceover
+from tutorialflow.tools.generate_voice import (
+    generate_segmented_voiceover as make_segmented_voiceover,
+    generate_voiceover as make_voiceover,
+)
 from tutorialflow.tools.get_result import build_thumbnail_brief as make_thumbnail_brief
 from tutorialflow.tools.get_result import get_tutorial_result as result_for
 from tutorialflow.tools.inspect_video import inspect_video
@@ -55,6 +58,14 @@ class ChatGPTFile(BaseModel):
     file_name: str | None = None
 
 
+class NarrationSegment(BaseModel):
+    """One spoken scene cue, anchored to the original recording timeline."""
+
+    model_config = ConfigDict(extra="forbid")
+    start_seconds: float = Field(description="Original video time in seconds when this scene narration begins")
+    text: str = Field(description="Narration for this scene only")
+
+
 public_host = urlsplit(settings.app_base_url).hostname or "localhost"
 local_hosts = ["localhost", "localhost:*", "127.0.0.1", "127.0.0.1:*", "testserver"]
 allowed_hosts = list(dict.fromkeys([public_host, f"{public_host}:*", *local_hosts]))
@@ -62,14 +73,16 @@ allowed_origins = [f"{urlsplit(settings.app_base_url).scheme}://{public_host}", 
 
 mcp = MCPServer(
     name="TutorialFlow",
-    version="0.2.0",
+    version="0.3.0",
     instructions=(
         "An uploaded video addressed to TutorialFlow requests the complete tutorial unless the user explicitly "
         "asks for script review or script only. First call inspect_tutorial_video and inspect its returned frames. "
-        "Never infer actions from the filename. Write a narration script grounded in those frames, then call "
-        "finish_tutorial once with the returned project_id, the script, and a short title. Include product_name "
-        "only when the application name is clearly visible in the recording. That single tool "
-        "chooses a voice, calls ElevenLabs, renders the synchronized MP4, and creates the thumbnail on Railway. "
+        "Never infer actions from the filename. Write short, timestamped narration segments anchored to the returned "
+        "keyframe time_seconds values. Leave gaps when the recording pauses or changes task; never retime or stretch "
+        "the video to fit speech. Then call finish_tutorial once with the project_id, short title, and ordered "
+        "narration_segments. Include product_name only when visible in the recording. The server uses the Roger "
+        "voice, calls ElevenLabs once per segment, places each clip on the source timeline, stream-copies the source "
+        "video, and creates the thumbnail. "
         "Return the artifact links. Never ask the user to provide ElevenLabs audio. If inspection or completion "
         "fails, report the exact tool error and stop."
     ),
@@ -78,12 +91,12 @@ mcp = MCPServer(
 
 @mcp.tool(meta={"openai/fileParams": ["video"]})
 def inspect_tutorial_video(video: ChatGPTFile, brand: str = "general"):
-    """Inspect an uploaded recording and return its actual frames. Uses neutral, generic styling by default."""
+    """Inspect an uploaded recording and return actual frames with source timestamps."""
     try:
         details = inspect_video(video.model_dump(exclude_none=True), canonical_brand_preset(brand))
     except (TypeError, ValueError, ProjectError) as exc:
         raise ToolError(str(exc)) from exc
-    details["next_step"] = "For a complete tutorial, write a script grounded in these frames, then call finish_tutorial once with project_id, script, and title. The server generates the MP3, MP4, and thumbnail."
+    details["next_step"] = "For a complete tutorial, write short narration_segments anchored to visible keyframe time_seconds values, then call finish_tutorial with project_id, title, and narration_segments. The server uses Roger, makes one speech clip per cue, preserves the original video timing, and returns the MP3, MP4, and thumbnail."
     root = project_path(details["project_id"])
     blocks = [TextContent(type="text", text=json.dumps(details, ensure_ascii=False))]
     blocks.append(Image(path=root / details["contact_sheet_path"]))
@@ -94,7 +107,7 @@ def inspect_tutorial_video(video: ChatGPTFile, brand: str = "general"):
 
 @mcp.tool()
 def list_elevenlabs_voices() -> dict:
-    """List account voices for advanced manual voice selection. finish_tutorial chooses one automatically."""
+    """List account voices. finish_tutorial uses the Roger voice and does not fall back to another voice."""
     try:
         return {"voices": list_voices()}
     except ElevenLabsError as exc:
@@ -118,7 +131,7 @@ def save_tutorial_script(project_id: str, script: str) -> dict:
 
 @mcp.tool()
 def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
-    """Manual/review mode: render the recording with generated narration. Auto mode uses finish_tutorial."""
+    """Place narrated scene clips at their source timestamps. The source video is never retimed."""
     return sync_video_tool(project_id, strategy)
 
 
@@ -134,22 +147,37 @@ def build_thumbnail_brief(project_id: str, title: str, brand: str = "general",
     return [TextContent(type="text", text=json.dumps(brief, ensure_ascii=False)), Image(path=path)]
 
 
+def _roger_voice_id() -> str:
+    voices = [voice for voice in list_voices() if voice.get("voice_id")]
+    roger_voices = [voice for voice in voices if str(voice.get("name", "")).casefold().startswith("roger")]
+    if settings.elevenlabs_voice_id:
+        configured = next((voice for voice in roger_voices
+                           if voice["voice_id"] == settings.elevenlabs_voice_id), None)
+        if configured:
+            return configured["voice_id"]
+    exact = next((voice for voice in roger_voices
+                  if str(voice.get("name", "")).casefold() == "roger - laid-back, casual, resonant"), None)
+    selected = exact or next(iter(roger_voices), None)
+    if selected:
+        return selected["voice_id"]
+    raise ElevenLabsError(
+        "The Roger voice is not available on this ElevenLabs account. Add 'Roger - Laid-Back, Casual, Resonant' "
+        "to the account before generating; TutorialFlow will not silently switch to another voice."
+    )
+
+
 @mcp.tool(annotations={"destructiveHint": False, "readOnlyHint": False})
-def finish_tutorial(project_id: str, script: str, title: str, voice_id: str | None = None,
+def finish_tutorial(project_id: str, title: str, narration_segments: list[NarrationSegment],
                     brand: str = "general", product_name: str | None = None) -> dict:
-    """Complete an inspected tutorial in one call. If visible, include the product_name exactly as shown in the recording for the thumbnail's product badge. Never invent a logo or ask for audio."""
+    """Generate Roger voice clips at scene timestamps, preserve source video timing, and return the finished tutorial."""
     try:
         selected_brand = canonical_brand_preset(brand)
+        segments = [segment.model_dump() for segment in narration_segments]
+        script = "\n\n".join(segment["text"].strip() for segment in segments)
         save_script_tool(project_id, script)
-        selected_voice = voice_id or settings.elevenlabs_voice_id
-        if not selected_voice:
-            voices = [item for item in list_voices() if item.get("voice_id")]
-            if not voices:
-                raise ElevenLabsError("No ElevenLabs voices are available. Add an account voice or set ELEVENLABS_VOICE_ID.")
-            preferred = next((item for item in voices if str(item.get("name", "")).casefold().startswith("roger")), None)
-            selected_voice = (preferred or voices[0])["voice_id"]
-        make_voiceover(project_id, script, selected_voice)
-        sync_video_tool(project_id)
+        selected_voice = _roger_voice_id()
+        make_segmented_voiceover(project_id, segments, selected_voice)
+        sync_video_tool(project_id, "segments")
         thumbnail_error = None
         try:
             render_thumbnail(project_id, title, selected_brand, product_name)
@@ -199,7 +227,7 @@ async def _periodic_cleanup() -> None:
         await asyncio.to_thread(cleanup_expired_projects)
 
 
-app = FastAPI(title="TutorialFlow", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="TutorialFlow", version="0.3.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -208,7 +236,7 @@ def health() -> dict:
     return {"status": "ok" if all(tools.values()) else "degraded", **tools}
 
 
-ARTIFACT_PATH_RE = re.compile(r"^(?:output/(?:tutorial\.mp4|thumbnail\.png)|audio/narration\.mp3|script\.txt|frames/(?:contact_sheet\.jpg|frame_[0-9]{2}\.jpg|preview_[0-9]{2}\.jpg))$")
+ARTIFACT_PATH_RE = re.compile(r"^(?:output/(?:tutorial\.mp4|thumbnail\.png)|audio/(?:narration|timeline)\.mp3|script\.txt|frames/(?:contact_sheet\.jpg|frame_[0-9]{2}\.jpg|preview_[0-9]{2}\.jpg))$")
 
 
 @app.get("/artifacts/{project_id}/{artifact_path:path}")

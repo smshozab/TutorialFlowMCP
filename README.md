@@ -1,6 +1,6 @@
 # TutorialFlow
 
-TutorialFlow is a Railway-first MCP server that inspects a screen recording, returns real visual evidence to ChatGPT, and then uses FFmpeg and ElevenLabs to create a narrated tutorial. ChatGPT performs the visual reasoning and writes the script. Railway creates a consistent thumbnail from a real frame, and ChatGPT may optionally create a more elaborate image with its native image-generation capability. No OpenAI or other vision API is called by the backend.
+TutorialFlow is a Railway-first MCP server that inspects a screen recording, returns timestamped visual evidence to ChatGPT, and uses ElevenLabs and FFmpeg to make a narrated tutorial. ChatGPT writes short scene cues anchored to the recording timeline. Railway creates one voice clip per cue, places it at its cue time, and stream-copies the original video so frames are never stretched or sped up to fit narration. See the [editable Excalidraw architecture](TutorialFlow-Architecture.excalidraw).
 
 ## Install your own copy
 
@@ -23,7 +23,7 @@ See [Railway's service deployment guide](https://docs.railway.com/services) and 
 1. Use a ChatGPT account and workspace that permits developer mode and MCP **write** actions. Access depends on plan and workspace policy; see [OpenAI's current availability guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt). Read/fetch-only access cannot complete the render workflow.
 2. Enable **Developer mode** in ChatGPT, open **Plugins**, and select **+** to add a connection. Enter a name such as `TutorialFlow` and the server URL `https://your-service.up.railway.app/mcp`. Use your own Railway domain. The current server has **No Auth**; connect only to a deployment you control and trust.
 3. Review the discovered tools. You should see `inspect_tutorial_video`, `finish_tutorial`, and `list_elevenlabs_voices`. Start a **new chat** and select the TutorialFlow connection from the tools menu.
-4. Attach a short MP4 screen recording and ask: **“Create the complete narrated tutorial from this recording. Inspect it, then use finish_tutorial to produce the MP4, ElevenLabs MP3, script, and thumbnail.”** ChatGPT should inspect actual frames, write the script, and call `finish_tutorial`; you do **not** need to provide an ElevenLabs audio file.
+4. Attach a screen recording and ask for the complete tutorial. ChatGPT should inspect the frames, make short timed narration cues, then call `finish_tutorial`; it produces the MP4, timeline MP3, script, and thumbnail. You do **not** need to provide an ElevenLabs audio file.
 5. Download the returned files before the project expires (24 hours by default). If you want to approve the wording first, explicitly ask for a script draft for review instead of a complete tutorial.
 
 ChatGPT's [connection walkthrough](https://developers.openai.com/plugins/deploy/connect-chatgpt) covers the current developer-mode screens. A direct MCP connection loads the server's tools and instructions, **not** the [`SKILL.md`](skills/tutorialflow/SKILL.md) in this GitHub repo. The explicit prompt above works with a direct connection; the optional local plugin package below also bundles the skill.
@@ -48,11 +48,12 @@ After a new version is pushed here, sync your fork and let Railway redeploy (or 
 ```text
 ChatGPT file upload → MCP fileParams (temporary URL) → Railway streamed download
 → ffprobe + FFmpeg keyframes/contact sheet → MCP image content for ChatGPT
-→ ChatGPT script → finish_tutorial → ElevenLabs MP3 → FFmpeg H.264/AAC render
-→ branded PNG thumbnail → signed temporary artifact links → automatic TTL cleanup
+→ ChatGPT maps scene cues to keyframe times → finish_tutorial → Roger TTS clips
+→ FFmpeg lays clips on timeline and stream-copies source video → MP4 + timeline MP3
+→ frame-based PNG thumbnail → token-protected artifact links → automatic TTL cleanup
 ```
 
-The upload uses ChatGPT's documented MCP file input contract: `openai/fileParams` identifies a file object with `download_url` and `file_id`. The service streams the temporary HTTPS download to disk in bounded chunks and never reads the whole recording into memory. The inspection result includes actual MCP image blocks (contact sheet plus sampled keyframes) so the model can inspect what happened. The Railway service then handles voice selection, TTS, rendering, and a frame-based thumbnail in one `finish_tutorial` call. See [OpenAI's file parameter reference](https://developers.openai.com/plugins/reference#file-apis) and [MCP Python SDK media results](https://py.sdk.modelcontextprotocol.io/servers/media/).
+The upload uses ChatGPT's documented MCP file input contract: `openai/fileParams` identifies a file object with `download_url` and `file_id`. The service streams the temporary HTTPS download to disk in bounded chunks and never reads the whole recording into memory. The inspection result includes actual MCP image blocks with source timestamps, a contact sheet, and sampled keyframes. ChatGPT writes short cues against those time anchors. Railway then handles Roger voice selection, one TTS request per cue, source-preserving synchronization, and a frame-based thumbnail in one `finish_tutorial` call. See [OpenAI's file parameter reference](https://developers.openai.com/plugins/reference#file-apis) and [MCP Python SDK media results](https://py.sdk.modelcontextprotocol.io/servers/media/).
 
 ## Railway and local storage
 
@@ -74,8 +75,8 @@ ChatGPT product access can vary by plan and workspace policy. Current OpenAI gui
 
 1. Create an API key in your ElevenLabs account and confirm API access is enabled.
 2. Set the key as the Railway variable `ELEVENLABS_API_KEY`; do not add it to Git or conversation text.
-3. Allow **Voices Read** and **Text to Speech** for that API key. Optionally set `ELEVENLABS_VOICE_ID` to your preferred voice ID. If it is empty, `finish_tutorial` lists account voices and chooses Roger when available, otherwise the first available voice. Voice listing requires `voices_read` permission.
-4. `ELEVENLABS_MODEL` defaults to `eleven_flash_v2_5` and is configurable. ElevenLabs currently lists Flash v2.5 as a balanced, lower-cost speech model; model and voice access still depend on your account. See [model selection](https://elevenlabs.io/docs/models) and the [Create speech API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert). The tool caches the MP3 when the script, voice, and model match, avoiding a second TTS request.
+3. Allow **Voices Read** and **Text to Speech** for that API key. `finish_tutorial` requires the account voice **Roger - Laid-Back, Casual, Resonant** and never silently falls back to another voice. Optionally set `ELEVENLABS_VOICE_ID` to Roger's voice ID. Voice listing requires `voices_read` permission.
+4. `ELEVENLABS_MODEL` defaults to `eleven_flash_v2_5` and is configurable. ElevenLabs currently lists Flash v2.5 as a balanced, lower-cost speech model; model and voice access still depend on your account. See [model selection](https://elevenlabs.io/docs/models) and the [Create speech API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert). Each cue MP3 is cached independently by text, voice, and model, so retries reuse completed segments.
 
 The free tier's voice/model availability and quotas are controlled by ElevenLabs. TutorialFlow surfaces rate/quota, voice, and API-key errors without logging credentials.
 
@@ -84,7 +85,7 @@ The free tier's voice/model availability and quotas are controlled by ElevenLabs
 | Variable | Default | Purpose |
 |---|---:|---|
 | `ELEVENLABS_API_KEY` | empty | Required only for TTS and voice listing |
-| `ELEVENLABS_VOICE_ID` | empty | Optional default voice ID |
+| `ELEVENLABS_VOICE_ID` | empty | Optional Roger voice ID; non-Roger IDs are ignored by `finish_tutorial` |
 | `ELEVENLABS_MODEL` | `eleven_flash_v2_5` | TTS model ID |
 | `PROJECT_TTL_HOURS` | `24` | Project retention limit |
 | `MAX_PROJECT_SIZE_MB` | `500` | Maximum streamed source size |
@@ -104,7 +105,7 @@ The live MCP server advertises the complete flow in its instructions and tool de
 1. Upload the recording in ChatGPT and ask “Create a tutorial from this recording.” The thumbnail uses a neutral general style by default, with the real screen recording as its visual reference.
 2. `inspect_tutorial_video` streams it to Railway and returns metadata and the visual frames.
 3. ChatGPT inspects the images and writes a fact-grounded narration script.
-4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with the grounded script and a short title. Railway chooses a voice, generates the ElevenLabs MP3, renders the MP4, and makes a neutral PNG thumbnail from a real frame. It pauses for script approval only when you ask for a script draft or review.
+4. For a complete tutorial request, ChatGPT calls `finish_tutorial` with a short title and timestamped narration segments grounded in the returned keyframe times. Railway uses Roger, generates separate ElevenLabs clips, places them at the given times, preserves the original video stream and duration, and makes the PNG thumbnail. It pauses for script approval only when you ask for a script draft or review.
 5. `finish_tutorial` returns the script and temporary download links. Projects are deleted after the TTL; `delete_tutorial_project` removes one immediately.
 
 The automatic thumbnail uses a modern dark layout, a large real video frame, the tutorial title, and a compact product identity badge when the app name is visible. The screenshot preserves the actual product logo if it appears in the recording. ChatGPT may optionally create a more elaborate image from the `build_thumbnail_brief` result; the brief tells it to use only visible app branding. The assistant should never ask you to upload ElevenLabs audio: `finish_tutorial` creates it through the configured API key.
@@ -115,8 +116,8 @@ The automatic thumbnail uses a modern dark layout, a large real video frame, the
 - `list_elevenlabs_voices()` — live account voice list; does not assume any voice is available.
 - `save_tutorial_script(project_id, script)` — stores the ChatGPT-authored review draft.
 - `generate_voiceover(project_id, script, voice_id, model)` — cached ElevenLabs MP3.
-- `finish_tutorial(project_id, script, title, voice_id, brand, product_name)` — complete voice selection, narration, video render, thumbnail, and artifact URLs in one call. `product_name` is optional and should match a name visible in the recording.
-- `sync_tutorial(project_id, strategy)` — global video retiming and H.264/AAC MP4 render.
+- `finish_tutorial(project_id, title, narration_segments, brand, product_name)` — generate Roger clips at each scene timestamp, preserve the video timing, create a thumbnail, and return artifact URLs. Each segment has `start_seconds` and `text`; `product_name` is optional and should match a name visible in the recording.
+- `sync_tutorial(project_id, strategy)` — compose the timestamped narration with silence between cues and mux it with the unchanged source video. `strategy="segments"` requires per-scene cues; `auto` accepts those cues or a single manual voice track beginning at time zero. Global video retiming is disabled.
 - `build_thumbnail_brief(project_id, title, brand, product_name)` — optional text brief plus a real evidence frame for native image generation.
 - `get_tutorial_result(project_id)` — project status and artifact URLs.
 - `delete_tutorial_project(project_id)` — removes one project.
@@ -125,7 +126,20 @@ The automatic thumbnail uses a modern dark layout, a large real video frame, the
 
 ## Synchronization
 
-The renderer uses the video stream's own duration (rather than the container duration, which may include a longer source audio track), resets both media timestamps to zero, and then retimes the video to the generated narration duration. This avoids inherited start offsets and duration drift from recordings with mismatched video/audio tracks. If the narration is shorter, video speeds up; if it is longer, the video slows down. Extreme ratios outside 0.25–4.0 are rejected so the user can revise the script. The original recording audio is replaced with the generated narration. Segment-aware action-to-speech alignment, silence trimming, cursor detection, subtitles, and zooms remain future work.
+The ChatGPT workflow sends an ordered `narration_segments` array. Each item contains `start_seconds` on the source recording's timeline and the narration `text` for that scene. TutorialFlow makes one ElevenLabs request per segment using Roger, checks that each rendered clip finishes before the next cue and before the video ends, and returns a clear error if a cue overruns. FFmpeg places the clips at their timestamps, leaves all other spans silent, and replaces the recording's original audio. The source video stream is copied without re-encoding or changing its playback speed; a short voice track never shortens the recording, and a long one never stretches it. The final MP4 is capped to the probed video-stream duration. Manual one-script voice generation is placed at 0 seconds and must fit inside that duration.
+
+For example, if the visible transition to Overleaf is confirmed at 10.23 seconds, its cue can start there:
+
+```json
+{
+  "narration_segments": [
+    {"start_seconds": 0.0, "text": "GitHub setup narration for the opening scene."},
+    {"start_seconds": 10.23, "text": "Overleaf narration begins as the recording switches to Overleaf."}
+  ]
+}
+```
+
+Roger is selected by its account voice name (using `ELEVENLABS_VOICE_ID` only when it identifies a Roger voice). If Roger is unavailable, the full workflow stops with an actionable error instead of selecting another voice. The ElevenLabs error handler buffers a failed streaming response before decoding JSON, so the API's actual error is preserved. Segmented narration uses one TTS request per cue; shorter scenes therefore mean more API requests, and finished cue clips are cached for retries.
 
 ## Cleanup and project limits
 

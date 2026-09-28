@@ -30,6 +30,9 @@ tutorialflow = ["brands/*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# tests/test_server.py imports the repo-root server module; without this the bare
+# `pytest` console script only puts tests/ on sys.path and collection fails.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

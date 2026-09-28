@@ -12,7 +12,23 @@ from tutorialflow.config import settings
 from tutorialflow.utils.subprocess_utils import MediaCommandError, run_media_command
 
 SCENE_TIME_RE = re.compile(r"pts_time:([0-9.]+)")
+MAX_END_SEEK_BACKOFF = 0.5
 logger = logging.getLogger(__name__)
+
+
+def sample_seek_time(second: float, duration: float, fps: float = 0.0) -> float:
+    """Pick a decodable seek target for a sample time.
+
+    `-ss` yields the first frame at or after the target, and a target at the probed
+    duration sits past the final frame, so the stream ends empty. End samples are
+    therefore pulled back by more than one frame interval. Short clips that only
+    produce the two endpoint samples still return both frames.
+    """
+    if duration <= 0:
+        return max(0.0, second)
+    frame_interval = 1 / fps if fps > 0 else 0.2
+    epsilon = min(1.5 * frame_interval, MAX_END_SEEK_BACKOFF)
+    return max(0.0, min(second, duration - epsilon))
 
 
 def sample_times(duration: float, scene_times: list[float], limit: int = 18) -> list[float]:
@@ -42,7 +58,7 @@ def detect_scene_times(video: Path) -> list[float]:
     return [float(value) for value in SCENE_TIME_RE.findall(result.stderr)]
 
 
-def extract_keyframes(video: Path, out_dir: Path, duration: float) -> list[dict]:
+def extract_keyframes(video: Path, out_dir: Path, duration: float, fps: float = 0.0) -> list[dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
     times = sample_times(duration, detect_scene_times(video), settings.max_frame_count)
     frames: list[dict] = []
@@ -54,7 +70,8 @@ def extract_keyframes(video: Path, out_dir: Path, duration: float) -> list[dict]
             # The MJPEG encoder rejects limited-range YUV from some screen recorders.
             # Decode to PNG, then let Pillow convert to the final JPEGs.
             run_media_command([
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{second:.3f}",
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss",
+                f"{sample_seek_time(second, duration, fps):.3f}",
                 "-i", str(video), "-map", "0:v:0", "-frames:v", "1",
                 "-an", "-sn", "-dn", "-c:v", "png", "-pix_fmt", "rgb24",
                 "-threads", "1", "-y", str(temporary),

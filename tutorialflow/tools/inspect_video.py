@@ -102,7 +102,7 @@ def inspect_video(video: dict, brand: str = "general") -> dict:
         max_duration = settings.max_video_duration_minutes * 60
         if metadata["duration_seconds"] > max_duration:
             raise ValueError(f"Recording is {metadata['duration_seconds'] / 60:.1f} minutes; limit is {settings.max_video_duration_minutes} minutes.")
-        frames = extract_keyframes(source, root / "frames", metadata["duration_seconds"])
+        frames = extract_keyframes(source, root / "frames", metadata["duration_seconds"], metadata["fps"])
         contact_sheet = root / "frames" / "contact_sheet.jpg"
         create_contact_sheet(frames, contact_sheet)
         record = load_project(project_id)

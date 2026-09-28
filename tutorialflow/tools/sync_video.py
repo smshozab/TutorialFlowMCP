@@ -81,6 +81,9 @@ def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
     record = load_project(project_id)
     source_relative = record.get("source", {}).get("path")
     video_duration = float(record.get("source", {}).get("duration_seconds") or 0)
+    video_start_time = float(record.get("source", {}).get("video_start_time_seconds") or 0)
+    if not math.isfinite(video_start_time):
+        video_start_time = 0.0
     if not source_relative or not math.isfinite(video_duration) or video_duration <= 0:
         raise ValueError("Inspect the source video before syncing the tutorial.")
     source = resolve_artifact(project_id, source_relative)
@@ -98,7 +101,8 @@ def sync_tutorial(project_id: str, strategy: str = "auto") -> dict:
         raise ValueError("A render is already running on this service. Retry in a moment.")
     try:
         render_video(timeline_audio_command(segments, video_duration, str(timeline_audio)))
-        render_video(render_command(str(source), str(timeline_audio), str(output), video_duration))
+        render_video(render_command(str(source), str(timeline_audio), str(output), video_duration,
+                                    video_start_time))
     except Exception as exc:
         set_project_status(record, "failed")
         save_project(project_id, record)

@@ -39,16 +39,25 @@ def timeline_audio_command(segments: list[dict], duration: float, output: str) -
     return args
 
 
-def render_command(video: str, audio: str, output: str, video_duration: float) -> list[str]:
+def render_command(video: str, audio: str, output: str, video_duration: float,
+                   video_start_time: float = 0.0) -> list[str]:
     """Mux narration while stream-copying every source video frame at its original timing."""
     if not math.isfinite(video_duration) or video_duration <= 0:
         raise ValueError("Source video duration must be positive.")
-    return [
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", video, "-i", audio,
+    args = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
+    # A non-zero video start offset (common in MOV/QuickTime captures) would otherwise
+    # leave every frame later than its narration cue and shorten the output by that
+    # offset. Shift the copied video stream back to zero so it lines up with the
+    # timeline audio, which already starts at zero.
+    if math.isfinite(video_start_time) and video_start_time != 0:
+        args.extend(["-itsoffset", f"{-video_start_time:.6f}"])
+    args.extend([
+        "-i", video, "-i", audio,
         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
         "-c:a", "aac", "-b:a", "160k", "-t", f"{video_duration:.6f}",
         "-movflags", "+faststart", "-y", output,
-    ]
+    ])
+    return args
 
 
 def render_video(args: list[str]) -> None:

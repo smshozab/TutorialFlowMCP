@@ -114,6 +114,30 @@ def test_stream_copy_render_normalizes_video_start_offset(tmp_path, offset):
     assert times["video"][1] == pytest.approx(info["duration_seconds"], abs=0.05)
 
 
+def test_sample_seek_time_pulls_end_sample_inside_the_stream():
+    assert frames.sample_seek_time(4.0, 10.0, 30.0) == 4.0
+    assert frames.sample_seek_time(10.0, 10.0, 30.0) == pytest.approx(10.0 - 0.05)
+    assert frames.sample_seek_time(10.0, 10.0, 10.0) == pytest.approx(10.0 - 0.15)
+    assert frames.sample_seek_time(10.0, 10.0) == pytest.approx(10.0 - 0.3)  # unknown fps fallback
+    assert frames.sample_seek_time(0.0, 10.0, 30.0) == 0.0
+
+
+def test_frame_extraction_keeps_both_endpoint_frames_of_a_short_clip(tmp_path, monkeypatch):
+    """The endpoint sample must be seeked just inside the stream, not past the last frame."""
+    monkeypatch.setattr(frames, "detect_scene_times", lambda _video: [])
+    seeks = []
+
+    def fake_ffmpeg(command, timeout):
+        seeks.append(float(command[command.index("-ss") + 1]))
+        Image.new("RGB", (64, 36), "#123456").save(command[-1], format="PNG")
+
+    monkeypatch.setattr(frames, "run_media_command", fake_ffmpeg)
+    extracted = frames.extract_keyframes(tmp_path / "source.mp4", tmp_path / "frames", 3.0, 10.0)
+    assert [frame["time_seconds"] for frame in extracted] == [0.0, 3.0]
+    assert seeks[0] == 0.0
+    assert seeks[-1] == pytest.approx(2.85)
+
+
 def test_probe_rejects_invalid_video(tmp_path, monkeypatch):
     source = tmp_path / "bad.mp4"
     source.write_bytes(b"not video")
